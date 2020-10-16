@@ -21,6 +21,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", xRouter.handler)
 	r.HandleFunc("/item", xRouter.newItem).Methods("POST")
+	r.HandleFunc("/item/update", xRouter.updateItem).Methods("POST")
 	r.HandleFunc("/item/volatile", xRouter.getVolatileList).Methods("GET")
 	r.HandleFunc("/item/persistence", xRouter.getPersistenceList).Methods("GET")
 	log.Fatal(http.ListenAndServe("localhost:8080", r))
@@ -39,7 +40,21 @@ func (x *XRouter) newItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	index := time.Now().Format("m_02_01_2006_15_04_05")
+	formData.Index =  index
 	x.Badger.AddNewItem(index, formData)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
+	return
+}
+
+func (x *XRouter) updateItem(w http.ResponseWriter, r *http.Request) {
+	formData := badgerkv.MigratedCsvFile{}
+	err := json.NewDecoder(r.Body).Decode(&formData)
+	if err != nil {
+		log.Printf("error parse form data : %+v", err)
+		return
+	}
+	x.Badger.UpdateItem(formData)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("ok"))
 	return

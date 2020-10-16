@@ -1,4 +1,5 @@
 package badgerkv
+
 //https://dgraph.io/docs/badger/get-started/
 import (
 	"encoding/json"
@@ -12,14 +13,15 @@ type MigratedCsvFile struct {
 	Known    bool   `json:"known_category"`
 	Status   string `json:"status"`
 	FilePath string `json:"file_path"`
+	Index    string `json:"index"`
 }
 
 type BadgerStorage struct {
 	VolatileDataStore *badger.DB
-	HybridDataStore *badger.DB
+	HybridDataStore   *badger.DB
 }
 
-func Init() *BadgerStorage{
+func Init() *BadgerStorage {
 	tempDB, err := badger.Open(badger.DefaultOptions("").WithInMemory(true))
 	if err != nil {
 		log.Printf("error init badger .... : %+v", err)
@@ -35,7 +37,7 @@ func Init() *BadgerStorage{
 
 }
 
-func (b *BadgerStorage) AddNewItem(index string, data MigratedCsvFile){
+func (b *BadgerStorage) AddNewItem(index string, data MigratedCsvFile) {
 	inputData, err := json.Marshal(data)
 	if err != nil {
 		log.Printf("[AddNewItem] error marshall input data : %+v", err)
@@ -44,19 +46,40 @@ func (b *BadgerStorage) AddNewItem(index string, data MigratedCsvFile){
 	err = b.HybridDataStore.Update(func(txn *badger.Txn) error {
 		return txn.Set([]byte(index), inputData)
 	})
-	if err!= nil {
+	if err != nil {
 		log.Printf("[AddNewItem] error save data to HybridDataStore kv : %+v", err)
 	}
 
 	err = b.VolatileDataStore.Update(func(txn *badger.Txn) error {
 		return txn.Set([]byte(index), inputData)
 	})
-	if err!= nil {
+	if err != nil {
 		log.Printf("[AddNewItem] error save data to VolatileDataStore kv : %+v", err)
 	}
 }
 
-func (b *BadgerStorage) GetVolatileItemList()(data []*MigratedCsvFile){
+func (b *BadgerStorage) UpdateItem(data MigratedCsvFile) {
+	inputData, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("[AddNewItem] error marshall input data : %+v", err)
+	}
+
+	err = b.HybridDataStore.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(data.Index), inputData)
+	})
+	if err != nil {
+		log.Printf("[AddNewItem] error save data to HybridDataStore kv : %+v", err)
+	}
+
+	err = b.VolatileDataStore.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(data.Index), inputData)
+	})
+	if err != nil {
+		log.Printf("[AddNewItem] error save data to VolatileDataStore kv : %+v", err)
+	}
+}
+
+func (b *BadgerStorage) GetVolatileItemList() (data []*MigratedCsvFile) {
 	//volatile data
 	if err := b.VolatileDataStore.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -75,11 +98,9 @@ func (b *BadgerStorage) GetVolatileItemList()(data []*MigratedCsvFile){
 				data = append(data, &csvData)
 				return nil
 			})
-
 			if err != nil {
 				log.Printf("[GetVolatileItemList] error retrieve data : %+v", err)
 			}
-
 		}
 		return nil
 	}); err != nil {
@@ -88,7 +109,7 @@ func (b *BadgerStorage) GetVolatileItemList()(data []*MigratedCsvFile){
 	return
 }
 
-func (b *BadgerStorage) GetPersistenceItemList()(data []*MigratedCsvFile){
+func (b *BadgerStorage) GetPersistenceItemList() (data []*MigratedCsvFile) {
 	//volatile data
 	if err := b.HybridDataStore.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -106,11 +127,9 @@ func (b *BadgerStorage) GetPersistenceItemList()(data []*MigratedCsvFile){
 				data = append(data, &csvData)
 				return nil
 			})
-
 			if err != nil {
 				log.Printf("[GetVolatileItemList] error retrieve data : %+v", err)
 			}
-
 		}
 		return nil
 	}); err != nil {
