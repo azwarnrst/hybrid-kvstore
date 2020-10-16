@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/dgraph-io/badger/v2"
 	"log"
+	"time"
 )
 
 type MigratedCsvFile struct {
@@ -35,6 +36,28 @@ func Init() *BadgerStorage {
 		HybridDataStore:   hbDB,
 	}
 
+}
+
+func (b *BadgerStorage) AddNewItemTTL(index string, data MigratedCsvFile, ttl time.Duration) {
+	inputData, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("[AddNewItem] error marshall input data : %+v", err)
+	}
+
+	err = b.HybridDataStore.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(index), inputData)
+	})
+	if err != nil {
+		log.Printf("[AddNewItem] error save data to HybridDataStore kv : %+v", err)
+	}
+
+	err = b.VolatileDataStore.Update(func(txn *badger.Txn) error {
+		e := badger.NewEntry([]byte(index), inputData).WithTTL(ttl)
+		return txn.SetEntry(e)
+	})
+	if err != nil {
+		log.Printf("[AddNewItem] error save data to VolatileDataStore kv : %+v", err)
+	}
 }
 
 func (b *BadgerStorage) AddNewItem(index string, data MigratedCsvFile) {
